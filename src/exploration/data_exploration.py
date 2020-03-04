@@ -9,10 +9,16 @@ import requests
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from pathlib import Path
+import json
 
 STATION_INFO_URL = "https://gbfs.bluebikes.com/gbfs/en/station_information.json"
 STATION_STATUS_URL = "https://gbfs.bluebikes.com/gbfs/en/station_status.json"
 WEATHER_DATA_URL = "https://api.darksky.net/forecast"
+DATA_PATH = Path("data/interim/")
+WEATHER_SAVE_DATA_PATH = DATA_PATH / 'weather'
+STATION_SAVE_DATA_PATH = DATA_PATH / 'stationdata'
+
 
 # Load environment variables
 load_dotenv(verbose=True)
@@ -31,11 +37,23 @@ def get_station_data():
             stations.append([station['station_id'], station['name'], station['capacity'], station['lat'], 
         station['lon']])
         station_df = pd.DataFrame(stations, columns=['Station_id', 'Station_name', 'Capacity', 'lat', 'lon'])
+
+        # Save data
+        timestamp = parse_timestamp(station_data_request.json()['last_updated'])
+        save_filepath = STATION_SAVE_DATA_PATH / f"bluebike_station_information__{timestamp}.json"
+        save_filepath.touch()
+        with open(save_filepath, 'w') as f:
+            json.dump(station_data_request.json(), f)
+        
         return station_df
     else:
         st.write("An error occurred and couldn't retrieve station data")
 
+def parse_timestamp(ts):
+    """Parse POSIX timestamp"""
 
+    return pd.Timestamp.fromtimestamp(ts)
+    
 def get_station_status():
     """
 "station_id": "7",
@@ -55,8 +73,21 @@ def get_station_status():
         station_status = []
         for station in station_response.json()['data']['stations']:
             #TODO include parsed timestamps
-            station_status.append([station['station_id'], station["num_bikes_available"], station['num_docks_available'], station['num_ebikes_available']])
-        return pd.DataFrame(station_status, columns=['Station_id', 'num_bikes_available', 'num_docks_available', 'num_ebikes_available'])
+            station_status.append([station['station_id'], station["num_bikes_available"], station['num_docks_available'],
+            station['num_ebikes_available'], station["num_bikes_disabled"], station['num_docks_disabled'], 
+            station['is_renting'], station['is_returning']])
+
+        station_status_df = pd.DataFrame(station_status, columns=['Station_id', "num_bikes_available", 'num_docks_available',
+            'num_ebikes_available', 'num_bikes_disabled', 'num_docks_disabled', 'is_renting', 'is_returning'])
+        
+        # Save data
+        timestamp = parse_timestamp(station_response.json()['last_updated'])
+        save_filepath = STATION_SAVE_DATA_PATH / f"bluebike_station_status__{timestamp}.json"
+        save_filepath.touch()
+        with open(save_filepath, 'w') as f:
+            json.dump(station_response.json(), f)
+
+        return station_status_df
 
 @st.cache
 def get_current_weather(lat, lon):
@@ -64,15 +95,16 @@ def get_current_weather(lat, lon):
 
     # Build parameters for weather data request
     current_time = datetime.now()
+
+    #TODO: display date in [YYYY]-[MM]-[DD]T[HH]:[MM]:[SS] format
     current_time = str(current_time).replace(' ', 'T').split('.')[0]
-    print(f"current time: {current_time}")
     
-        # Make API call and exclude minutely and current weather
+    # Make API call and exclude minutely and current weather
     URL = f"{WEATHER_DATA_URL}/{DARK_SKY_SECRET_KEY}/{lat},{lon},{current_time}"
     params = {
         "exclude": ['minutely', 'hourly', 'flags']
     }
-    print(f"URL: {URL}")
+
     weather_data_request = requests.get(URL, params=params)
     return weather_data_request.json()
 
@@ -108,17 +140,19 @@ station_id_mapping = {key:value for (idx, (key, value)) in station_data[['Statio
 
 selected_station = st.sidebar.selectbox(label='Station name', options = sorted(list(station_id_mapping.keys())))
 station_id = station_id_mapping[selected_station]
-station_lat = station_data.query("Station_id == @station_id")['lat'].values[0]
-station_lon = station_data.query("Station_id == @station_id")['lon'].values[0]
 
-print(f"station lat: {station_lat}, station lon: {station_lon}")
 # Display station Status for the selected station
 st.subheader(f"Station: {selected_station}")
 station_status = get_station_status()
+print(station_status.query("Station_id == @station_id"))
 st.write(station_status.query("Station_id == @station_id"))
+
+station_lat = station_data.query("Station_id == @station_id")['lat'].values[0]
+station_lon = station_data.query("Station_id == @station_id")['lon'].values[0]
+# Retrieve weather data for the specified station
 station_weather = get_current_weather(station_lat, station_lon)
 st.write(station_weather)
-# Retrieve weather data for the specified station
+# Log station weather to the database
 
 # 3. Determine the min number of weather stations I need to poll for weather data
 # 4. Test writing station status data to a Postgres DB
