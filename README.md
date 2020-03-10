@@ -17,12 +17,12 @@ BlueBike publishes historical data each quarter. These files include:
 Unfortunately these files do not include real-time station data such as the number of available bikes at a station). This data is retrieved via their real-time General Bikeshare Feed Specification (GBFS) [feed](https://gbfs.bluebikes.com/gbfs/gbfs.json).
 
 ## Implementation plan
-My plan is to retrieve realtime station and weather data via the BlueBike GBFS feed and [Dark Sky]() API every 15 minutes using an AWS Lambda function. That data will be stored either in an S3 bucket or in a Database (TBD).
+My plan is to retrieve realtime station and weather data via the BlueBike GBFS feed and [Dark Sky]() API every 30 minutes using an AWS Lambda function (Station data is updated at varying times per station so 30 minutes should be an acceptable frequency). That data will be stored either in an S3 bucket or in a Database (TBD).
 BlueBike posts the trip data for the previous month ~20 days after the month end.
 
 ### Database schema
 
-I plan to use a Postgres db for storing station data
+I plan to use a Postgres db for storing station status
 
 Data for a single station from https://gbfs.bluebikes.com/gbfs/es/station_status.json query
 ```json
@@ -55,12 +55,35 @@ Database schema
 "num_docks_available": int
 "num_docks_disabled": int,
 "is_installed": int
-"is_renting": int? 
-"is_returning":int?
+"is_renting": bool 
+"is_returning":bool
 "last_reported": timestamp (e.g. 1581794646)
 -- Use the request timestamp and station ID as the primary key
 
+CREATE TABLE station_status (
+id SERIAL,
+station_id VARCHAR(6),
+num_bikes_available SMALLINT,
+num_ebikes_available SMALLINT,
+num_bikes_disabled SMALLINT,
+num_docks_available SMALLINT,
+num_docks_disabled SMALLINT,
+is_installed BOOL,
+is_renting BOOL, 
+is_returning BOOL, 
+timestamp TIMESTAMP,
+PRIMARY KEY (timestamp, station_id) 
+);
+
 ```
+I'll use the `bluebikes` user for accessing the database and inserting data into it. This user will need to be provided with read and insert permissions for this database. The SQL syntax is `GRANT permission ON tablename TO username`
+```sql
+GRANT SELECT ON station_status TO bluebikes;
+GRANT INSERT ON station_status TO bluebikes;
+GRANT UPDATE ON station_status TO bluebikes;
+GRANT DELETE ON station_status TO bluebikes; 
+```
+
 
 #### Station data
 Data for a single station from https://gbfs.bluebikes.com/gbfs/en/station_information.json.
@@ -112,6 +135,16 @@ capacity int,
 
 )
 ```
+### Weather data
+
+If I pull weather data every 10 minutes, that translates to 144 readings per station per day. The daily free request limit for Dark Sky is 1000 API calls so I can only request for 6 weather stations data per day (864 API calls per day).
+The cities/muni's in the data set are:
+1. Boston
+1. Brookline
+1. Cambridge
+1. Somerville
+1. Everett
+1. Dorchester
 
 Project Organization
 ------------
