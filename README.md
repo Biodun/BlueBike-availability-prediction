@@ -60,9 +60,9 @@ Database schema
 "last_reported": timestamp (e.g. 1581794646)
 -- Use the request timestamp and station ID as the primary key
 
-CREATE TABLE station_status (
-id SERIAL,
-station_id VARCHAR(6),
+CREATE TABLE raw_station_status (
+id SERIAL PRIMARY KEY,
+station_id VARCHAR(5),
 num_bikes_available SMALLINT,
 num_ebikes_available SMALLINT,
 num_bikes_disabled SMALLINT,
@@ -71,17 +71,17 @@ num_docks_disabled SMALLINT,
 is_installed BOOL,
 is_renting BOOL, 
 is_returning BOOL, 
-timestamp TIMESTAMP,
-PRIMARY KEY (timestamp, station_id) 
+last_reported TIMESTAMP,
+timestamp_of_data_read_request TIMESTAMP 
 );
 
 ```
 I'll use the `bluebikes` user for accessing the database and inserting data into it. This user will need to be provided with read and insert permissions for this database. The SQL syntax is `GRANT permission ON tablename TO username`
 ```sql
-GRANT SELECT ON station_status TO bluebikes;
-GRANT INSERT ON station_status TO bluebikes;
-GRANT UPDATE ON station_status TO bluebikes;
-GRANT DELETE ON station_status TO bluebikes; 
+GRANT SELECT ON raw_station_status TO bluebikes;
+GRANT INSERT ON raw_station_status TO bluebikes;
+GRANT UPDATE ON raw_station_status TO bluebikes;
+GRANT DELETE ON raw_station_status TO bluebikes; 
 ```
 
 
@@ -124,7 +124,7 @@ Proposed database schema for station data
 
 ```sql
 CREATE TABLE boston_station_data (
-station_id varchar(5),
+station_id  PRIMARY KEY varchar(5),
 external_id varchar(37),
 station_name varchar(45),
 station_short_name varchar(15),
@@ -135,9 +135,15 @@ capacity int,
 
 )
 ```
+## Next steps
+1. Resolve the issue of stations that have a timestamp of "1970-01-01 19:00:00" i.e. they aren't being updated so the database write fails
+1. Write SQL for creating the `station_data` table
+1. Update the `station_status` table to reference the `station_id` column as a foreign key
+1. Deploy an AWS lambda function to request station data every 30 minutes
+
 ### Weather data
 
-If I pull weather data every 10 minutes, that translates to 144 readings per station per day. The daily free request limit for Dark Sky is 1000 API calls so I can only request for 6 weather stations data per day (864 API calls per day).
+If I pull weather data every 30 minutes, that translates to 48 readings per station per day. The daily free request limit for Dark Sky is 1000 API calls so I can only request for 20 weather stations data per day (960 API calls per day).
 The cities/muni's in the data set are:
 1. Boston
 1. Brookline
