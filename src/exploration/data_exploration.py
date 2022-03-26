@@ -109,7 +109,7 @@ def get_current_weather(lat, lon):
     return weather_data_request.json()
 
 
-st.title("BlueBike Data Viz")
+st.title("BlueBike Data Vizualization")
 if st.checkbox("Show BlueBike data"):
     st.subheader('Blue Bike Station Data')
     station_data = get_station_data()

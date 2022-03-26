@@ -17,12 +17,19 @@ BASE_URL = "https://api.darksky.net/forecast"
 BASE_FOLDER = here()
 SAVE_PATH = BASE_FOLDER / "data/processed"
 
-latitude  = 42.363796
-longitude = -71.1087861286
+# Station whose weather we want to retrieve
+latitude  = 42.352587795070214
+longitude = -71.06764905172895
+station_id = "42"
+station_external_id = "f83481c5-0de8-11e7-991c-3863bb43a7d0"
+station_name = "Boylston St at Arlington St"
+short_name = "D32007"
+
 all_weather_data = []
-start_date = '2020-01-01'
-end_date = '2020-11-14'
-# Retrieve weather data for thGIT e specified
+start_date = '2015-01-01'
+end_date = '2015-12-31'
+
+# Retrieve weather data for the specified date range
 for day in pd.date_range(start_date, end_date, freq='D'):
     # Format timestamp to match what DarkSky API expects
     timestamp = str(day).replace(' ', 'T') #[YYYY]-[MM]-[DD]T[HH]:[MM]:[SS]
@@ -41,5 +48,6 @@ for day in pd.date_range(start_date, end_date, freq='D'):
 weather_df = pd.concat(all_weather_data)
 weather_df['latitude'] = latitude
 weather_df['longitude'] = longitude
-weather_df.to_csv(f'{SAVE_PATH}/weather_data_{start_date}__{end_date}.csv')
+weather_df['station_id'] = station_id
+weather_df.to_csv(f'{SAVE_PATH}/station_{station_id}_weather_data_{start_date}__{end_date}.csv')
 
